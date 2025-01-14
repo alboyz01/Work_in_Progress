@@ -1,0 +1,21 @@
+# Filter for Albanian language speakers
+albanian_speakers <- microdata[LANGUAGE == 17]
+
+# Calculate current year
+current_year <- as.integer(format(Sys.Date(), "%Y"))
+
+# Get counts of naturalizations within the past 5, 10, and 15 years
+naturalized_within_5_years <- sum(!is.na(albanian_speakers$YRNATUR) & albanian_speakers$YRNATUR != 9999 & (current_year - albanian_speakers$YRNATUR) <= 5)
+naturalized_within_10_years <- sum(!is.na(albanian_speakers$YRNATUR) & albanian_speakers$YRNATUR != 9999 & (current_year - albanian_speakers$YRNATUR) <= 10)
+naturalized_within_15_years <- sum(!is.na(albanian_speakers$YRNATUR) & albanian_speakers$YRNATUR != 9999 & (current_year - albanian_speakers$YRNATUR) <= 15)
+
+# Create a data table for the results
+results <- data.table(
+  "Period" = c("5 years", "10 years", "15 years"),
+  "Number of Albanian speakers" = c(naturalized_within_5_years, naturalized_within_10_years, naturalized_within_15_years)
+)
+
+
+cat("Number of Albanian language speakers naturalized within the past 5 years:", naturalized_within_5_years, "\n")
+cat("Number of Albanian language speakers naturalized within the past 10 years:", naturalized_within_10_years, "\n")
+cat("Number of Albanian language speakers naturalized within the past 15 years:", naturalized_within_15_years, "\n")
