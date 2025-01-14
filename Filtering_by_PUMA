@@ -1,0 +1,98 @@
+# Read counties reference file
+counties_ref <- fread("C:/Users/gleni/OneDrive/Desktop/Project Election/ipums_usa_identified_counties.csv", skip = 1)
+
+# Rename columns to match the actual structure
+setnames(counties_ref, 
+         c("State", "County Name (ICPSR)", "IPUMS USA Variables", "", "_1", "_2"),
+         c("State", "County_Name", "STATEFIP", "COUNTYFIP", "Available", "Notes"))
+
+# Clean up the data - remove empty rows and convert types
+counties_ref <- counties_ref[State != ""]
+counties_ref[, STATEFIP := as.numeric(STATEFIP)]
+counties_ref[, COUNTYFIP := as.numeric(COUNTYFIP)]
+
+# Filter for available counties (where Available column contains "X")
+available_counties <- counties_ref[Available == "X"]
+
+# Filter for Albanian ancestry
+albania_ancestry <- microdata[ANCESTR1 == 100]
+
+# Create state-county level analysis
+county_estimates <- albania_ancestry[, 
+                                     .(Sample_Count = .N,
+                                       Weighted_Population = sum(PERWT)),
+                                     by = .(STATEFIP, PUMA)]
+
+# Create unique identifier for matching
+available_counties[, STATE_COUNTY := paste0(
+  sprintf("%02d", STATEFIP),
+  sprintf("%03d", COUNTYFIP)
+)]
+
+# Create results for all available counties
+county_results <- merge(
+  available_counties,
+  county_estimates,
+  by.x = c("STATEFIP", "COUNTYFIP"),
+  by.y = c("STATEFIP", "PUMA"),
+  all.x = TRUE  # Keep all available counties even if no Albanian population
+)
+
+# Format results
+county_results[is.na(Sample_Count), ':=' (
+  Sample_Count = 0,
+  Weighted_Population = NA
+)]
+
+# Sort by state and county name
+setorder(county_results, State, County_Name)
+
+# Print results
+print("Albanian Ancestry Population by County:")
+print(county_results[, .(
+  State,
+  County_Name,
+  Sample_Count,
+  Population = ifelse(is.na(Weighted_Population), 
+                      "N/A", 
+                      format(round(Weighted_Population, 0), big.mark=","))
+)])
+
+# Create state-level summary (excluding N/A values)
+state_summary <- county_results[!is.na(Weighted_Population), .(
+  Total_Counties = .N,
+  Counties_with_Population = sum(Sample_Count > 0),
+  Total_Sample_Count = sum(Sample_Count),
+  Total_Population = format(round(sum(Weighted_Population, na.rm = TRUE), 0), big.mark=",")
+), by = State]
+
+setorder(state_summary, -Total_Counties)
+
+print("\nState-Level Summary:")
+print(state_summary)
+
+# Overall summary
+total_summary <- data.table(
+  Total_States = uniqueN(county_results$State),
+  Total_Counties = nrow(county_results),
+  Counties_with_Population = sum(county_results$Sample_Count > 0),
+  Total_Sample_Count = sum(county_results$Sample_Count),
+  Total_Population = format(round(sum(county_results$Weighted_Population, na.rm = TRUE), 0), big.mark=",")
+)
+
+print("\nOverall Summary:")
+print(total_summary)
+
+# Save results to CSV files
+fwrite(county_results[, .(
+  State,
+  County_Name,
+  Sample_Count,
+  Population = ifelse(is.na(Weighted_Population), 
+                      "N/A", 
+                      format(round(Weighted_Population, 0), big.mark=","))
+)], "C:/Users/gleni/OneDrive/Desktop/Project Election/albanian_ancestry_by_county.csv")
+
+fwrite(state_summary, "C:/Users/gleni/OneDrive/Desktop/Project Election/albanian_ancestry_state_summary.csv")
+
+
